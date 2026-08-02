@@ -1,0 +1,122 @@
+{
+    "bill1.png": {
+        "vendor": "SRI LAKSHMI GENERAL STORE",
+        "invoice_number": "125",
+        "date": "12/07/2026",
+        "amount": 415.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill2.png": {
+        "vendor": "ANBU MEDICALS",
+        "invoice_number": "237",
+        "date": "13/07/2026",
+        "amount": 170.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill3.png": {
+        "vendor": "New Kurinji Bakery",
+        "invoice_number": "58",
+        "date": "14/07/2026",
+        "amount": 240.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill4.png": {
+        "vendor": "S.V. Vegetables",
+        "invoice_number": null,
+        "date": "15/07/2026",
+        "amount": 170.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill5.png": {
+        "vendor": "Karthik Electricals",
+        "invoice_number": "315",
+        "date": "16/07/2026",
+        "amount": 480.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill6.png": {
+        "vendor": "Meena Tailoring",
+        "invoice_number": "77",
+        "date": "16/07/2026",
+        "amount": 550.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill7.png": {
+        "vendor": "Royal Tea Stall",
+        "invoice_number": null,
+        "date": "17/07/2026",
+        "amount": 95.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill8.png": {
+        "vendor": "Ramesh Hardware",
+        "invoice_number": "508",
+        "date": "18/07/2026",
+        "amount": 600.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill9.png": {
+        "vendor": "MURUGAN PROVISIONS",
+        "invoice_number": "642",
+        "date": "22/07/2026",
+        "amount": 453.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill10.png": {
+        "vendor": "BHARATH MEDICALS",
+        "invoice_number": "912",
+        "date": "23/07/2026",
+        "amount": 231.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill11.png": {
+        "vendor": "New Vinayaga Fancy Store",
+        "invoice_number": "310",
+        "date": "24/07/2026",
+        "amount": 166.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill12.png": {
+        "vendor": "LAXMI TRADERS",
+        "invoice_number": "118",
+        "date": "25/07/2026",
+        "amount": 3740.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill13.png": {
+        "vendor": "SRI GANESH SWEETS",
+        "invoice_number": "265",
+        "date": "26/07/2026",
+        "amount": 640.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill14.png": {
+        "vendor": "SIVA AUTO WORKS",
+        "invoice_number": "458",
+        "date": "27/07/2026",
+        "amount": 910.0,
+        "currency": "INR",
+        "gst": 0.0
+    },
+    "bill15.png": {
+        "vendor": "KARPAGAM MOBILES",
+        "invoice_number": "782",
+        "date": "28/07/2026",
+        "amount": 980.0,
+        "currency": "INR",
+        "gst": 0.0
+    }
+}
