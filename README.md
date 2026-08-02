@@ -1,4 +1,4 @@
-Highlight the text below starting from the `# Taxor Evaluation Framework` line, copy it, and paste it directly into your `README.md` file.
+
 
 # Taxor Evaluation Framework
 
