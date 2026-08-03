@@ -366,7 +366,7 @@ function LiveTestingMode() {
             const formData = new FormData();
             formData.append("file", file);
 
-            const res = await fetch(`${API_BASE_URL}/extract`, {
+            const res = await fetch(`${API_BASE_URL}/bills/extract`, {
                 method: "POST",
                 body: formData,
             });
