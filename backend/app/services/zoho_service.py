@@ -16,9 +16,15 @@ class ZohoBooksService:
         self.client_id = settings.ZOHO_CLIENT_ID
         self.client_secret = settings.ZOHO_CLIENT_SECRET
         self.refresh_token = settings.ZOHO_REFRESH_TOKEN
+        # CACHE: Store the token so we only ask Zoho for it once per batch
+        self._cached_token = None
 
     async def _get_fresh_access_token(self) -> str:
         """Exchanges the refresh token for a fresh access token."""
+        # If we already have the token from bill #1, reuse it for the rest!
+        if self._cached_token:
+            return self._cached_token
+
         if not self.client_id or not self.client_secret or not self.refresh_token:
             raise ValueError(
                 "Zoho Client ID, Secret, or Refresh Token are missing in environment.")
@@ -34,7 +40,8 @@ class ZohoBooksService:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(token_url, data=payload)
             if response.status_code == 200:
-                return response.json().get("access_token")
+                self._cached_token = response.json().get("access_token")
+                return self._cached_token
             else:
                 raise ValueError(
                     f"Failed to refresh Zoho token: {response.text}")
@@ -73,7 +80,7 @@ class ZohoBooksService:
         if not self.org_id:
             raise ValueError("Zoho credentials are not configured.")
 
-        # Get a fresh access token using our refresh logic
+        # Get a fresh access token using our refresh logic (or instantly from cache)
         current_token = await self._get_fresh_access_token()
 
         headers = {
