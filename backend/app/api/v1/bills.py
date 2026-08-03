@@ -270,3 +270,48 @@ async def sync_all_expenses(db: Session = Depends(get_db)):
             "details": details
         }
     }
+
+
+@router.post("/sync-one/{run_id}")
+async def sync_one_expense(run_id: str, db: Session = Depends(get_db)):
+    """
+    Syncs a single extraction run to Zoho Books using its unique run_id, 
+    with duplicate prevention.
+    """
+    zoho_service = ZohoBooksService()
+
+    # Find the specific run in the database
+    run = db.query(ExtractionRun).filter(ExtractionRun.id == run_id).first()
+    if not run:
+        raise HTTPException(
+            status_code=404, detail="Extraction run not found.")
+
+    extracted_data = {}
+    if run.raw_response_json:
+        try:
+            extracted_data = json.loads(run.raw_response_json)
+            if isinstance(extracted_data, str):
+                extracted_data = json.loads(extracted_data)
+        except Exception as e:
+            logger.error(f"Failed to decode JSON for run {run.id}: {e}")
+
+    if not extracted_data:
+        raise HTTPException(
+            status_code=400,
+            detail="Data is completely empty or invalid JSON string."
+        )
+
+    # Send to Zoho Books
+    zoho_res = await zoho_service.create_expense(extracted_data)
+
+    if zoho_res["status_code"] in [200, 201]:
+        return {
+            "status": "success",
+            "message": "Expense successfully created in Zoho Books.",
+            "zoho_response": zoho_res["zoho_response"]
+        }
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Zoho Error: {zoho_res.get('zoho_response', {})}"
+        )

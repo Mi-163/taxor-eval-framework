@@ -421,17 +421,19 @@ function LiveTestingMode() {
 
     const handleCreateExpense = async () => {
         const runId = cardStates.gemini.runId;
+        if (!runId) return;
+
         updateCard("gemini", { zohoStatus: "loading", zohoMessage: null });
 
         try {
             const res = await fetch(
-                `${API_BASE}/leaderboard/zoho/create-expense/${runId}`,
+                `${API_BASE_URL}/bills/sync-one/${runId}`,
                 { method: "POST" }
             );
             const data = await res.json().catch(() => ({}));
 
             if (!res.ok) {
-                throw new Error(data?.message || `Failed (${res.status})`);
+                throw new Error(data?.detail || data?.message || `Failed (${res.status})`);
             }
 
             updateCard("gemini", {
