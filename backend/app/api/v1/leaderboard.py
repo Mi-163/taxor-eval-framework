@@ -121,10 +121,10 @@ async def sync_all_expenses(db: Session = Depends(get_db)):
     if not runs:
         return {
             "message": "Everything is up to date! No new bills to sync.",
-            "data": {"success": 0, "failed": 0, "details": []}
+            "data": {"success": 0, "failed": 0, "skipped": 0, "details": []}
         }
 
-    results = {"success": 0, "failed": 0, "details": []}
+    results = {"success": 0, "failed": 0, "skipped": 0, "details": []}
 
     for run in runs:
         try:
@@ -143,12 +143,8 @@ async def sync_all_expenses(db: Session = Depends(get_db)):
                     except Exception:
                         extracted_data = {}
 
-            if not extracted_data:
-                results["failed"] += 1
-                results["details"].append({
-                    "run_id": str(run.id),
-                    "error": "Extracted JSON is empty or invalid."
-                })
+            # THE FIX: Silently skip empty JSONs, do NOT count them as failed
+            if not extracted_data or extracted_data == {}:
                 continue
 
             # 1st Attempt: Push to Zoho
@@ -166,14 +162,19 @@ async def sync_all_expenses(db: Session = Depends(get_db)):
                 status_code = response.get("status_code")
             # ----------------------------------
 
+            # SMART ERROR HANDLING
             if status_code in [200, 201]:
                 results["success"] += 1
                 run.is_synced = True  # Flag row in DB
             else:
-                results["failed"] += 1
-
-            results["details"].append(
-                {"run_id": str(run.id), "response": response})
+                err_msg = str(response.get("zoho_response", "")).lower()
+                if "already exists" in err_msg or "duplicate" in err_msg or "35002" in err_msg:
+                    results["skipped"] += 1  # Not a failure, just a duplicate!
+                    run.is_synced = True     # Mark as synced so we don't ask again
+                else:
+                    results["failed"] += 1
+                    results["details"].append(
+                        {"run_id": str(run.id), "response": response})
 
         except Exception as e:
             results["failed"] += 1
@@ -186,6 +187,6 @@ async def sync_all_expenses(db: Session = Depends(get_db)):
     db.commit()
 
     return {
-        "message": f"Bulk sync complete. {results['success']} synced, {results['failed']} failed.",
+        "message": f"Bulk sync complete. {results['success']} synced, {results['skipped']} skipped (duplicates), {results['failed']} failed.",
         "data": results
     }
