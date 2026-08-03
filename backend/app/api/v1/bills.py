@@ -9,6 +9,10 @@ import shutil
 import os
 import time
 import json
+import logging
+from app.services.zoho_service import ZohoBooksService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 eval_engine = EvaluationEngine()
@@ -16,6 +20,69 @@ eval_engine = EvaluationEngine()
 # Ensure dataset directory exists
 UPLOAD_DIR = "../dataset"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+@router.post("/extract")
+async def extract_bill(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Extracts data from a single bill using Gemini, saves the run into the DB, 
+    and returns the run_id so it can be pushed to Zoho Books.
+    """
+    file_path = os.path.join(UPLOAD_DIR, f"live_{file.filename}")
+
+    # 1. Save file locally
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # 2. Get Gemini LLM adapter
+    try:
+        adapter = get_llm_adapter("gemini")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"LLM Adapter Error: {str(e)}")
+
+    # 3. Run extraction
+    start_time = time.time()
+    try:
+        prediction, in_tokens, out_tokens = await adapter.extract_bill_data(file_path)
+        is_success = True
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Gemini Extraction Failed: {str(e)}")
+
+    latency = time.time() - start_time
+    cost = (in_tokens / 1000000 * 0.15) + (out_tokens / 1000000 * 0.60)
+
+    # 4. Save Bill record to DB
+    new_bill = Bill(filename=file.filename, ground_truth_json="{}")
+    db.add(new_bill)
+    db.commit()
+    db.refresh(new_bill)
+
+    # 5. Save ExtractionRun to DB (Generates the run_id needed for Zoho Sync)
+    run = ExtractionRun(
+        bill_id=new_bill.id,
+        model_name="gemini",
+        raw_response_json=json.dumps(prediction),
+        latency_seconds=latency,
+        input_tokens=in_tokens,
+        output_tokens=out_tokens,
+        total_cost_usd=cost,
+        is_successful=is_success
+    )
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    # 6. Return exact JSON format expected by React UI
+    return {
+        "status": "success",
+        "run_id": str(run.id),
+        "extracted_json": prediction
+    }
 
 
 @router.post("/evaluate/{model_name}")
@@ -54,7 +121,7 @@ async def evaluate_bill(
         print(f"LLM Error: {e}")
     latency = time.time() - start_time
 
-    # Calculate approximate cost (e.g., GPT-4o pricing)
+    # Calculate approximate cost
     cost = (in_tokens / 1000000 * 5.00) + (out_tokens / 1000000 * 15.00)
 
     # 5. Save Run Metrics
@@ -132,4 +199,74 @@ async def live_test_bill(file: UploadFile = File(...)):
         "status": "success",
         "filename": file.filename,
         "extracted_data": results
+    }
+
+
+@router.post("/sync-all")
+async def sync_all_expenses(db: Session = Depends(get_db)):
+    """
+    Fetches all successful extraction runs from the database, safely decodes 
+    the JSON (handling double-escaped strings from pre-computed text files), 
+    and pushes them to Zoho Books.
+    """
+    zoho_service = ZohoBooksService()
+
+    # Only fetch runs that have data
+    runs = db.query(ExtractionRun).filter(
+        ExtractionRun.is_successful == True).all()
+
+    success_count = 0
+    failed_count = 0
+    details = []
+
+    for run in runs:
+        extracted_data = {}
+
+        # --- THE FIX: SAFE JSON UNWRAPPING ---
+        if run.raw_response_json:
+            try:
+                # 1st unwrap: Convert DB string to Python object
+                extracted_data = json.loads(run.raw_response_json)
+
+                # 2nd unwrap: If the static file import double-encoded it, it will still be a string.
+                # Decode it one more time to get the actual dictionary.
+                if isinstance(extracted_data, str):
+                    extracted_data = json.loads(extracted_data)
+
+            except Exception as e:
+                logger.error(f"Failed to decode JSON for run {run.id}: {e}")
+                extracted_data = {}
+
+        # If data is completely empty after unwrapping, skip hitting the Zoho API
+        if not extracted_data:
+            failed_count += 1
+            details.append({
+                "run_id": str(run.id),
+                "response": {
+                    "status_code": 400,
+                    "zoho_response": {"code": 5015, "message": "Failed before Zoho: Data is completely empty or invalid JSON string."}
+                }
+            })
+            continue
+
+        # Send the clean, verified dictionary to Zoho
+        zoho_res = await zoho_service.create_expense(extracted_data)
+
+        if zoho_res["status_code"] in [200, 201]:
+            success_count += 1
+        else:
+            failed_count += 1
+
+        details.append({
+            "run_id": str(run.id),
+            "response": zoho_res
+        })
+
+    return {
+        "message": f"Bulk sync complete. {success_count} synced, {failed_count} failed.",
+        "data": {
+            "success": success_count,
+            "failed": failed_count,
+            "details": details
+        }
     }

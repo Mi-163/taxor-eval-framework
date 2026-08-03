@@ -35,10 +35,12 @@ class ExtractionRun(Base):
     output_tokens = Column(Integer, default=0)
     total_cost_usd = Column(Float, default=0.0)
     is_successful = Column(Boolean, default=True)
+    is_synced = Column(Boolean, default=False)
 
     bill = relationship("Bill", back_populates="runs")
     evaluations = relationship(
-        "FieldEvaluation", back_populates="run", cascade="all, delete-orphan")
+        "FieldEvaluation", back_populates="run", cascade="all, delete-orphan"
+    )
 
 
 class FieldEvaluation(Base):
