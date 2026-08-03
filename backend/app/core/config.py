@@ -15,6 +15,9 @@ class Settings:
     # Zoho Books Credentials
     ZOHO_ACCESS_TOKEN: str = os.getenv("ZOHO_ACCESS_TOKEN", "")
     ZOHO_ORG_ID: str = os.getenv("ZOHO_ORG_ID", "")
+    ZOHO_CLIENT_ID: str = os.getenv("ZOHO_CLIENT_ID", "")
+    ZOHO_CLIENT_SECRET: str = os.getenv("ZOHO_CLIENT_SECRET", "")
+    ZOHO_REFRESH_TOKEN: str = os.getenv("ZOHO_REFRESH_TOKEN", "")
 
 
 settings = Settings()
