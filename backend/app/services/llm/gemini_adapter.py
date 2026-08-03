@@ -12,9 +12,20 @@ logger = logging.getLogger(__name__)
 
 class GeminiModel(BaseModelAdapter):
 
-    async def extract_bill_data(self, image_path: str) -> Tuple[Dict[str, Any], int, int]:
+    async def extract_bill_data(self, image_path: str, use_mock: bool = False) -> Tuple[Dict[str, Any], int, int]:
         filename = os.path.basename(image_path)
 
+        # ---------------------------------------------------------
+        # 1. MODE 1 BYPASS: Do not call the live API at all
+        # ---------------------------------------------------------
+        if use_mock:
+            logger.info(
+                f"[Mode 1 - Benchmark] Bypassing live API. Loading mock JSON directly for {filename}")
+            return await self._fetch_mock_data(filename)
+
+        # ---------------------------------------------------------
+        # 2. MODE 2 LIVE CALL: Attempt to hit Google Servers
+        # ---------------------------------------------------------
         base64_image = self.encode_image_to_base64(image_path)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={self.api_key}"
 
