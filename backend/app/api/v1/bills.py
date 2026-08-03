@@ -216,7 +216,7 @@ async def live_test_bill(file: UploadFile = File(...)):
 async def sync_all_expenses(db: Session = Depends(get_db)):
     """
     Fetches all successful extraction runs, prevents redundant syncing of older 
-    entries, and gracefully handles Zoho duplicate errors so they don't look like failures.
+    entries, and gracefully ignores old empty "ghost" records.
     """
     zoho_service = ZohoBooksService()
 
@@ -226,7 +226,7 @@ async def sync_all_expenses(db: Session = Depends(get_db)):
 
     success_count = 0
     failed_count = 0
-    skipped_count = 0  # <--- NEW: Track items we intentionally skip
+    skipped_count = 0  # Track items we intentionally skip
     details = []
 
     for run in runs:
@@ -247,16 +247,10 @@ async def sync_all_expenses(db: Session = Depends(get_db)):
                 logger.error(f"Failed to decode JSON for run {run.id}: {e}")
                 extracted_data = {}
 
-        if not extracted_data:
-            failed_count += 1
-            details.append({
-                "run_id": str(run.id),
-                "response": {
-                    "status_code": 400,
-                    "zoho_response": {"code": 5015, "message": "Failed before Zoho: Data is completely empty or invalid JSON string."}
-                }
-            })
+        # --- THE FIX: SILENTLY IGNORE GHOST RECORDS ---
+        if not extracted_data or extracted_data == {}:
             continue
+        # ----------------------------------------------
 
         # 2. Attempt the sync to Zoho
         zoho_res = await zoho_service.create_expense(extracted_data)
@@ -281,10 +275,11 @@ async def sync_all_expenses(db: Session = Depends(get_db)):
             else:
                 failed_count += 1  # A legitimate failure
 
-        details.append({
-            "run_id": str(run.id),
-            "response": zoho_res
-        })
+                # Only append legitimate failures to the details list
+                details.append({
+                    "run_id": str(run.id),
+                    "response": zoho_res
+                })
 
     return {
         "message": f"Bulk sync complete. {success_count} synced, {skipped_count} skipped (duplicates), {failed_count} failed.",
