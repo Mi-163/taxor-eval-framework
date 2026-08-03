@@ -215,23 +215,29 @@ async def live_test_bill(file: UploadFile = File(...)):
 @router.post("/sync-all")
 async def sync_all_expenses(db: Session = Depends(get_db)):
     """
-    Fetches all successful extraction runs from the database, safely decodes 
-    the JSON (handling double-escaped strings from pre-computed text files), 
-    and pushes them to Zoho Books.
+    Fetches all successful extraction runs, prevents redundant syncing of older 
+    entries, and gracefully handles Zoho duplicate errors so they don't look like failures.
     """
     zoho_service = ZohoBooksService()
 
-    # Only fetch runs that have data
+    # Only fetch successful runs
     runs = db.query(ExtractionRun).filter(
         ExtractionRun.is_successful == True).all()
 
     success_count = 0
     failed_count = 0
+    skipped_count = 0  # <--- NEW: Track items we intentionally skip
     details = []
 
     for run in runs:
+        # 1. LOCAL REDUNDANCY CHECK: If we already marked this run as synced in the DB, skip it.
+        if getattr(run, 'is_synced', False):
+            skipped_count += 1
+            continue
+
         extracted_data = {}
 
+        # Safely unwrap JSON
         if run.raw_response_json:
             try:
                 extracted_data = json.loads(run.raw_response_json)
@@ -252,13 +258,28 @@ async def sync_all_expenses(db: Session = Depends(get_db)):
             })
             continue
 
-        # Send the clean, verified dictionary to Zoho
+        # 2. Attempt the sync to Zoho
         zoho_res = await zoho_service.create_expense(extracted_data)
 
+        # 3. SMART ERROR HANDLING
         if zoho_res["status_code"] in [200, 201]:
             success_count += 1
+            # Mark as synced in DB if your model has this column
+            if hasattr(run, 'is_synced'):
+                run.is_synced = True
+                db.commit()
+
         else:
-            failed_count += 1
+            # Check if Zoho rejected it simply because it already exists
+            err_msg = str(zoho_res.get("zoho_response", "")).lower()
+            if "already exists" in err_msg or "duplicate" in err_msg or "35002" in err_msg:
+                skipped_count += 1  # It's not a failure, it's just already there!
+                # Mark as synced so we don't even ask Zoho next time
+                if hasattr(run, 'is_synced'):
+                    run.is_synced = True
+                    db.commit()
+            else:
+                failed_count += 1  # A legitimate failure
 
         details.append({
             "run_id": str(run.id),
@@ -266,10 +287,11 @@ async def sync_all_expenses(db: Session = Depends(get_db)):
         })
 
     return {
-        "message": f"Bulk sync complete. {success_count} synced, {failed_count} failed.",
+        "message": f"Bulk sync complete. {success_count} synced, {skipped_count} skipped (duplicates), {failed_count} failed.",
         "data": {
             "success": success_count,
             "failed": failed_count,
+            "skipped": skipped_count,
             "details": details
         }
     }
